@@ -50,7 +50,8 @@ const AddProperty: React.FC = () => {
   const { addProperty } = useProperties();
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
-
+ const [submitted, setSubmitted] = useState(false);
+  
   const handleInputChange = (field: keyof PropertyData, value: string | string[]) => {
     setPropertyData(prev => ({
       ...prev,
@@ -146,6 +147,7 @@ const AddProperty: React.FC = () => {
       
       console.log('Submitting property data:', propertyToInsert);
       await addProperty(propertyToInsert);
+      setSubmitted(true);
       alert('Property submitted successfully! It will be reviewed by admin before going live.');
       // Optionally reset form or redirect
     } catch (err) {
@@ -649,11 +651,17 @@ const AddProperty: React.FC = () => {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting}
-                  className="flex items-center px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-lg hover:shadow-xl"
-                >
-                  {submitting ? 'Submitting...' : 'Submit Property'}
-                  <Check className="w-5 h-5 ml-2" />
+                   disabled={submitting || submitted}
+                  className={`flex items-center px-8 py-3 rounded-lg transition-all duration-200 shadow-lg ${
+                    submitted 
+                      ? 'bg-green-600 text-white cursor-not-allowed' 
+                      : submitting 
+                        ? 'bg-yellow-600 text-white cursor-not-allowed' 
+                        : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-xl'
+                  }`}
+                  >
+                   {submitted ? 'Submitted' : submitting ? 'Submitting...' : 'Submit Property'}
+                  {submitted ? <Check className="w-5 h-5 ml-2" /> : <Check className="w-5 h-5 ml-2" />}
                 </button>
               )}
             </div>
