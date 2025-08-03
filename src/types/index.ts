@@ -47,8 +47,8 @@ export interface Property {
   zip_code: string;
   latitude?: number;
   longitude?: number;
-  bedrooms: number;
-  bathrooms: number;
+  bedrooms?: number;
+  bathrooms?: number;
   square_feet: number;
   lot_size?: number;
   property_type: 'house' | 'condo' | 'apartment' | 'townhouse' | 'land' | 'villa' | 'farmhouse' | 'Duplex' | 'Penthouse' | 'Studio' | 'Bunglow' | 'Villa';

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useProperties } from '../hooks/useProperties';
 import { PropertyGrid } from '../components/properties/PropertyGrid';
+import { SEO } from '../components/common/SEO';
 
 
 export const HomePage: React.FC = () => {
@@ -26,8 +27,14 @@ export const HomePage: React.FC = () => {
     .slice(0, 6);
 
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
+    <>
+      <SEO 
+        title="IDRHub - Find Your Dream Home | Professional Real Estate Platform"
+        description="Discover exceptional properties with our advanced search tools and connect with verified real estate professionals. Browse thousands of properties, connect with agents, and find your perfect home."
+        type="website"
+      />
+      <div className="min-h-screen">
+        {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-blue-600 to-blue-800 text-white">
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
@@ -334,5 +341,6 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
     </div>
+    </>
   );
 };

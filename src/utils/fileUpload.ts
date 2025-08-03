@@ -9,20 +9,20 @@ export const uploadFileLocally = async (file: File, folder: 'properties' | 'avat
     const fileExtension = file.name.split('.').pop();
     const filename = `${timestamp}-${randomId}.${fileExtension}`;
     
-    // For now, use localStorage as primary method since Supabase Storage RLS is blocking access
-    console.log('Using localStorage for file upload (Supabase Storage RLS issues)');
-    return await uploadToLocalStorage(file, folder, filename);
-    
-    /* 
-    // Try to upload to Supabase Storage first (commented out due to RLS issues)
+    // Try to upload to Supabase Storage first
     try {
+      console.log('Attempting to upload to Supabase Storage...', { folder, filename, fileSize: file.size });
+      
       const { data, error } = await supabase.storage
         .from(folder)
-        .upload(filename, file);
+        .upload(filename, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
       if (error) {
-        console.warn('Supabase Storage upload failed, falling back to local storage:', error);
-        throw error; // This will trigger the fallback
+        console.warn('Supabase Storage upload failed:', error);
+        throw error;
       }
 
       // Get the public URL
@@ -30,16 +30,103 @@ export const uploadFileLocally = async (file: File, folder: 'properties' | 'avat
         .from(folder)
         .getPublicUrl(filename);
 
+      console.log('Successfully uploaded to Supabase Storage:', urlData.publicUrl);
       return urlData.publicUrl;
     } catch (storageError) {
-      // Fallback to local storage if Supabase Storage fails
-      console.log('Using local storage fallback for file upload');
-      return await uploadToLocalStorage(file, folder, filename);
+      console.warn('Supabase Storage upload failed, using localStorage fallback:', storageError);
+      
+      // Store in localStorage as fallback, but also store the file data for potential later upload
+      const localPath = await uploadToLocalStorage(file, folder, filename);
+      
+      // Try to queue the file for later upload to Supabase Storage
+      queueFileForUpload(file, folder, filename);
+      
+      return localPath;
     }
-    */
   } catch (error) {
     console.error('File upload error:', error);
     throw new Error('Failed to upload file');
+  }
+};
+
+// Queue files for later upload to Supabase Storage
+const queueFileForUpload = (file: File, folder: string, filename: string) => {
+  try {
+    const uploadQueue = JSON.parse(localStorage.getItem('uploadQueue') || '[]');
+    uploadQueue.push({
+      file: {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: file.lastModified
+      },
+      folder,
+      filename,
+      timestamp: Date.now(),
+      attempts: 0
+    });
+    localStorage.setItem('uploadQueue', JSON.stringify(uploadQueue));
+    console.log('File queued for later upload:', filename);
+  } catch (error) {
+    console.warn('Failed to queue file for upload:', error);
+  }
+};
+
+// Process upload queue (can be called periodically or on app startup)
+export const processUploadQueue = async () => {
+  try {
+    const uploadQueue = JSON.parse(localStorage.getItem('uploadQueue') || '[]');
+    if (uploadQueue.length === 0) return;
+
+    console.log('Processing upload queue...', uploadQueue.length, 'files');
+
+    for (let i = uploadQueue.length - 1; i >= 0; i--) {
+      const item = uploadQueue[i];
+      
+      // Skip if too many attempts
+      if (item.attempts >= 3) {
+        console.log('Skipping file after too many attempts:', item.filename);
+        uploadQueue.splice(i, 1);
+        continue;
+      }
+
+      try {
+        // Try to get the file from localStorage
+        const uploadedFiles = JSON.parse(localStorage.getItem('uploadedFiles') || '[]');
+        const fileData = uploadedFiles.find((f: any) => f.path === `/uploads/${item.folder}/${item.filename}`);
+        
+        if (!fileData || !fileData.content) {
+          console.log('File not found in localStorage, removing from queue:', item.filename);
+          uploadQueue.splice(i, 1);
+          continue;
+        }
+
+        // Convert base64 back to File object
+        const response = await fetch(fileData.content);
+        const blob = await response.blob();
+        const file = new File([blob], item.filename, { type: item.file.type });
+
+        // Try to upload to Supabase Storage
+        const { data, error } = await supabase.storage
+          .from(item.folder)
+          .upload(item.filename, file);
+
+        if (error) {
+          console.warn('Failed to upload queued file:', error);
+          item.attempts++;
+        } else {
+          console.log('Successfully uploaded queued file:', item.filename);
+          uploadQueue.splice(i, 1);
+        }
+      } catch (error) {
+        console.warn('Error processing queued file:', error);
+        item.attempts++;
+      }
+    }
+
+    localStorage.setItem('uploadQueue', JSON.stringify(uploadQueue));
+  } catch (error) {
+    console.error('Error processing upload queue:', error);
   }
 };
 
@@ -143,9 +230,16 @@ const uploadToLocalStorage = async (file: File, folder: string, filename: string
 
 // Function to get file URL from stored path
 export const getFileUrl = (filePath: string): string => {
-  // Check if it's already a full URL
+  // Check if it's already a full URL (Supabase Storage URL)
   if (filePath.startsWith('http')) {
-    return filePath; // Return the URL and let the browser handle loading errors
+    return filePath;
+  }
+  
+  // Check if it's a Supabase Storage path (starts with /storage/v1/object/public/)
+  if (filePath.startsWith('/storage/v1/object/public/')) {
+    // Convert to full URL
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
+    return `${supabaseUrl}${filePath}`;
   }
   
   // For local files, retrieve from localStorage
@@ -162,6 +256,7 @@ export const getFileUrl = (filePath: string): string => {
       }
     } else {
       // File not found in localStorage - this is normal for new uploads
+      console.log('File not found in localStorage:', filePath);
     }
   } catch (error) {
     console.warn('Error reading from local storage:', error);
@@ -226,6 +321,39 @@ export const clearLocalStorage = () => {
   console.log('Cleared uploadedFiles from localStorage');
 };
 
+// Function to validate video URLs
+export const validateVideoUrl = (url: string): { isValid: boolean; type: 'youtube' | 'instagram' | 'unknown'; message: string } => {
+  if (!url) {
+    return { isValid: false, type: 'unknown', message: 'URL is required' };
+  }
+
+  try {
+    // YouTube URL validation
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      const videoIdMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+      if (videoIdMatch) {
+        return { isValid: true, type: 'youtube', message: 'Valid YouTube URL' };
+      } else {
+        return { isValid: false, type: 'youtube', message: 'Invalid YouTube URL format' };
+      }
+    }
+    
+    // Instagram URL validation
+    if (url.includes('instagram.com') && (url.includes('reel') || url.includes('p/'))) {
+      const postIdMatch = url.match(/(?:instagram\.com\/reel\/|instagram\.com\/p\/)([a-zA-Z0-9_-]+)/);
+      if (postIdMatch) {
+        return { isValid: true, type: 'instagram', message: 'Valid Instagram URL' };
+      } else {
+        return { isValid: false, type: 'instagram', message: 'Invalid Instagram URL format' };
+      }
+    }
+    
+    return { isValid: false, type: 'unknown', message: 'Unsupported video platform' };
+  } catch (error) {
+    return { isValid: false, type: 'unknown', message: 'Invalid URL format' };
+  }
+};
+
 // Test function to check Supabase Storage accessibility
 export const testSupabaseStorage = async () => {
   try {
@@ -245,9 +373,26 @@ export const testSupabaseStorage = async () => {
     
     console.log('Avatars bucket list result:', { data: avatarsList, error: avatarsError });
     
+    // Test upload permissions by trying to upload a small test file
+    const testFile = new File(['test'], 'test.txt', { type: 'text/plain' });
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('properties')
+      .upload(`test-${Date.now()}.txt`, testFile);
+    
+    console.log('Test upload result:', { data: uploadData, error: uploadError });
+    
+    // If upload succeeded, clean up the test file
+    if (uploadData && !uploadError) {
+      const { error: deleteError } = await supabase.storage
+        .from('properties')
+        .remove([uploadData.path]);
+      console.log('Test file cleanup result:', { error: deleteError });
+    }
+    
     return {
       properties: { data: propertiesList, error: propertiesError },
-      avatars: { data: avatarsList, error: avatarsError }
+      avatars: { data: avatarsList, error: avatarsError },
+      upload: { data: uploadData, error: uploadError }
     };
   } catch (error) {
     console.error('Supabase Storage test error:', error);

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, Home, MapPin, Camera, Eye, Upload, Video, Check, X, IndianRupee, Bed, Bath, Square, Car, Calendar } from 'lucide-react';
-import { uploadFileLocally, getFileUrl } from '../utils/fileUpload';
+import { uploadFileLocally, getFileUrl, validateVideoUrl } from '../utils/fileUpload';
 import { useProperties } from '../hooks/useProperties';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -50,6 +50,7 @@ const AddProperty: React.FC = () => {
   const { addProperty } = useProperties();
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const handleInputChange = (field: keyof PropertyData, value: string | string[]) => {
     setPropertyData(prev => ({
@@ -126,8 +127,9 @@ const AddProperty: React.FC = () => {
         description: propertyData.description,
         property_type: propertyData.property_type as AllowedPropertyType,
         price: parsedPrice,
-        bedrooms: Number(propertyData.bedrooms),
-        bathrooms: Number(propertyData.bathrooms), // Convert to number
+        // For land properties, set bedrooms and bathrooms to undefined
+        bedrooms: propertyData.property_type === 'land' ? undefined : Number(propertyData.bedrooms),
+        bathrooms: propertyData.property_type === 'land' ? undefined : Number(propertyData.bathrooms),
         address: propertyData.address,
         city: propertyData.city,
         state: propertyData.state,
@@ -138,7 +140,8 @@ const AddProperty: React.FC = () => {
         is_approved: false,
         status: 'available' as AllowedStatusType,
         features: propertyData.features,
-        year_built: propertyData.year_built ? Number(propertyData.year_built) : undefined,
+        // For land properties, year_built can be undefined
+        year_built: propertyData.property_type === 'land' ? undefined : (propertyData.year_built ? Number(propertyData.year_built) : undefined),
         square_feet: Number(propertyData.square_feet),
         view_count: 0,
         is_featured: false,
@@ -146,6 +149,7 @@ const AddProperty: React.FC = () => {
       
       console.log('Submitting property data:', propertyToInsert);
       await addProperty(propertyToInsert);
+      setSubmitted(true);
       alert('Property submitted successfully! It will be reviewed by admin before going live.');
       // Optionally reset form or redirect
     } catch (err) {
@@ -193,10 +197,20 @@ const AddProperty: React.FC = () => {
     }
   };
 
+
+
   const isStepValid = () => {
     switch (currentStep) {
       case 1:
-        return propertyData.title && propertyData.property_type && propertyData.price && propertyData.bedrooms && propertyData.bathrooms && propertyData.square_feet && propertyData.year_built && propertyData.features.length > 0;
+        const basicValid = propertyData.title && propertyData.property_type && propertyData.price && propertyData.square_feet && propertyData.features.length > 0;
+        
+        // For land properties, don't require bedrooms/bathrooms/year_built
+        if (propertyData.property_type === 'land') {
+          return basicValid;
+        }
+        
+        // For other property types, require bedrooms, bathrooms, and year_built
+        return basicValid && propertyData.bedrooms && propertyData.bathrooms && propertyData.year_built;
       case 2:
         return propertyData.address && propertyData.city && propertyData.state && propertyData.zip_code;
       case 3:
@@ -275,39 +289,43 @@ const AddProperty: React.FC = () => {
           </div>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms</label>
-          <div className="relative">
-            <Bed className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-            <select
-              value={propertyData.bedrooms}
-              onChange={(e) => handleInputChange('bedrooms', e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="">Select</option>
-              {[1, 2, 3, 4, 5, 6].map(num => (
-                <option key={num} value={num}>{num}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+        {propertyData.property_type !== 'land' && (
+          <>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms</label>
+              <div className="relative">
+                <Bed className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+                <select
+                  value={propertyData.bedrooms}
+                  onChange={(e) => handleInputChange('bedrooms', e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="">Select</option>
+                  {[1, 2, 3, 4, 5, 6].map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Bathrooms</label>
-          <div className="relative">
-            <Bath className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
-            <select
-              value={propertyData.bathrooms}
-              onChange={(e) => handleInputChange('bathrooms', e.target.value)}
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-            >
-              <option value="">Select</option>
-              {[1, 2, 3, 4, 5].map(num => (
-                <option key={num} value={num}>{num}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Bathrooms</label>
+              <div className="relative">
+                <Bath className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+                <select
+                  value={propertyData.bathrooms}
+                  onChange={(e) => handleInputChange('bathrooms', e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="">Select</option>
+                  {[1, 2, 3, 4, 5].map(num => (
+                    <option key={num} value={num}>{num}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Square Feet</label>
@@ -530,12 +548,37 @@ const AddProperty: React.FC = () => {
             id="virtual_tour_url"
             value={propertyData.virtual_tour_url}
             onChange={e => handleInputChange('virtual_tour_url', e.target.value)}
-            placeholder="https://youtube.com/... or https://instagram.com/reel/..."
-            pattern="https://(www\.)?(youtube\.com|youtu\.be|instagram\.com/reel)/.+"
+            placeholder="https://youtube.com/watch?v=... or https://instagram.com/reel/..."
             required={false}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
           />
-          <small className="text-gray-500">Paste a YouTube or Instagram Reel link for a video tour (optional).</small>
+          <div className="mt-2 space-y-1">
+            <small className="text-gray-500">Paste a YouTube or Instagram Reel link for a video tour (optional).</small>
+            {propertyData.virtual_tour_url && (
+              <div className="text-xs">
+                {(() => {
+                  const validation = validateVideoUrl(propertyData.virtual_tour_url);
+                  return (
+                    <div className={`mt-2 p-2 rounded ${validation.isValid ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                      <p className="font-medium">{validation.message}</p>
+                      {!validation.isValid && (
+                        <div className="mt-1">
+                          <p className="text-gray-600">Supported formats:</p>
+                          <ul className="text-gray-500 ml-2 mt-1 space-y-1">
+                            <li>• YouTube: https://youtube.com/watch?v=VIDEO_ID</li>
+                            <li>• YouTube Shorts: https://youtube.com/shorts/VIDEO_ID</li>
+                            <li>• YouTube Short: https://youtu.be/VIDEO_ID</li>
+                            <li>• Instagram Reel: https://instagram.com/reel/POST_ID</li>
+                            <li>• Instagram Post: https://instagram.com/p/POST_ID</li>
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -604,8 +647,10 @@ const AddProperty: React.FC = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <div className="px-8 py-6 border-b border-gray-200">
-            <h1 className="text-3xl font-bold text-gray-900">Add New Property</h1>
-            <p className="text-gray-600 mt-2">Step {currentStep} of 4</p>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Add New Property</h1>
+              <p className="text-gray-600 mt-2">Step {currentStep} of 4</p>
+            </div>
           </div>
 
           <div className="px-8 py-8">
@@ -649,11 +694,17 @@ const AddProperty: React.FC = () => {
               ) : (
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting}
-                  className="flex items-center px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-lg hover:shadow-xl"
+                  disabled={submitting || submitted}
+                  className={`flex items-center px-8 py-3 rounded-lg transition-all duration-200 shadow-lg ${
+                    submitted 
+                      ? 'bg-green-600 text-white cursor-not-allowed' 
+                      : submitting 
+                        ? 'bg-yellow-600 text-white cursor-not-allowed' 
+                        : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-xl'
+                  }`}
                 >
-                  {submitting ? 'Submitting...' : 'Submit Property'}
-                  <Check className="w-5 h-5 ml-2" />
+                  {submitted ? 'Submitted' : submitting ? 'Submitting...' : 'Submit Property'}
+                  {submitted ? <Check className="w-5 h-5 ml-2" /> : <Check className="w-5 h-5 ml-2" />}
                 </button>
               )}
             </div>

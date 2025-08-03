@@ -35,6 +35,8 @@ import { ReviewForm } from '../components/common/ReviewForm';
 import toast from 'react-hot-toast';
 import BookingModal from '../components/common/BookingModal';
 import { UserAvatar } from '../components/common/UserAvatar';
+import { SEO } from '../components/common/SEO';
+import { SocialShare } from '../components/common/SocialShare';
 
 const PropertyDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -204,6 +206,8 @@ const PropertyDetailsPage: React.FC = () => {
     }
   };
 
+
+
   const nextImage = () => {
     if (property?.images && property.images.length > 1) {
       setCurrentImageIndex((prev) => 
@@ -247,6 +251,7 @@ const PropertyDetailsPage: React.FC = () => {
     if (!url) return '';
     
     try {
+      // YouTube URL handling
       if (url.includes('youtube.com') || url.includes('youtu.be')) {
         let videoId = '';
         
@@ -260,6 +265,14 @@ const PropertyDetailsPage: React.FC = () => {
           videoId = url.split('youtu.be/')[1]?.split(/[?&]/)[0] || '';
         } else if (url.includes('youtube.com/v/')) {
           videoId = url.split('/v/')[1]?.split(/[?&]/)[0] || '';
+        } else if (url.includes('youtube.com/shorts/')) {
+          videoId = url.split('/shorts/')[1]?.split(/[?&]/)[0] || '';
+        }
+        
+        // Additional fallback for any YouTube URL with video ID pattern
+        if (!videoId) {
+          const videoIdMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]{11})/);
+          videoId = videoIdMatch ? videoIdMatch[1] : '';
         }
         
         if (!videoId) {
@@ -268,14 +281,34 @@ const PropertyDetailsPage: React.FC = () => {
         }
         
         return `https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0&modestbranding=1&enablejsapi=1`;
-      } else if (url.includes('instagram.com') && url.includes('reel')) {
-        const parts = url.split('/');
-        const idx = parts.findIndex(p => p === 'reel');
-        const videoId = idx !== -1 ? parts[idx + 1] : '';
-        return `https://www.instagram.com/reel/${videoId}/embed`;
+      } 
+      // Instagram Reel URL handling
+      else if (url.includes('instagram.com') && (url.includes('reel') || url.includes('p/'))) {
+        let postId = '';
+        
+        if (url.includes('/reel/')) {
+          const parts = url.split('/reel/');
+          postId = parts[1]?.split(/[?&]/)[0] || '';
+        } else if (url.includes('/p/')) {
+          const parts = url.split('/p/');
+          postId = parts[1]?.split(/[?&]/)[0] || '';
+        }
+        
+        if (!postId) {
+          console.error('Could not extract post ID from Instagram URL:', url);
+          return '';
+        }
+        
+        return `https://www.instagram.com/p/${postId}/embed`;
       }
       
-      return url;
+      // If it's already an embed URL, return as is
+      if (url.includes('/embed')) {
+        return url;
+      }
+      
+      console.warn('Unsupported video URL format:', url);
+      return '';
     } catch (error) {
       console.error('Error processing video URL:', error);
       return '';
@@ -315,8 +348,27 @@ const PropertyDetailsPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+    <>
+      {/* SEO Meta Tags for Social Sharing */}
+      {property && (
+        <SEO
+          property={{
+            title: property.title,
+            price: property.price,
+            bedrooms: property.bedrooms,
+            bathrooms: property.bathrooms,
+            square_feet: property.square_feet,
+            city: property.city,
+            state: property.state,
+            images: property.images
+          }}
+          url={window.location.href}
+          type="property"
+        />
+      )}
+      
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
@@ -360,24 +412,43 @@ const PropertyDetailsPage: React.FC = () => {
               <div className="relative">
                 {isVideoIndex ? (
                   <div className="w-full h-96 flex items-center justify-center bg-black">
-                    {getEmbedUrl(property!.virtual_tour_url!) ? (
-                      <iframe
-                        src={getEmbedUrl(property!.virtual_tour_url!)}
-                        title="Video Tour"
-                        className="w-full h-full rounded-lg border"
-                        allowFullScreen
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        frameBorder="0"
-                        onError={(e) => {
-                          console.error('Video embed error:', e);
-                        }}
-                      />
-                    ) : (
-                      <div className="text-white text-center">
-                        <p>Video not available</p>
-                        <p className="text-sm text-gray-400 mt-2">Unable to load video</p>
-                      </div>
-                    )}
+                    {(() => {
+                      const embedUrl = getEmbedUrl(property!.virtual_tour_url!);
+                      console.log('Original URL:', property!.virtual_tour_url);
+                      console.log('Embed URL:', embedUrl);
+                      
+                      if (embedUrl) {
+                        return (
+                          <iframe
+                            src={embedUrl}
+                            title="Video Tour"
+                            className="w-full h-full rounded-lg border"
+                            allowFullScreen
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            frameBorder="0"
+                            onError={(e) => {
+                              console.error('Video embed error:', e);
+                            }}
+                            onLoad={() => {
+                              console.log('Video iframe loaded successfully');
+                            }}
+                          />
+                        );
+                      } else {
+                        return (
+                          <div className="text-white text-center p-8">
+                            <div className="mb-4">
+                              <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <p className="text-lg font-medium">Video not available</p>
+                            <p className="text-sm text-gray-400 mt-2">Unable to load video</p>
+                            <p className="text-xs text-gray-500 mt-1">URL: {property!.virtual_tour_url}</p>
+                          </div>
+                        );
+                      }
+                    })()}
                   </div>
                 ) : (
                   <img
@@ -471,17 +542,21 @@ const PropertyDetailsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <Bed className="w-6 h-6 text-gray-600 mx-auto mb-2" />
-                  <div className="text-lg font-semibold text-gray-900">{property.bedrooms}</div>
-                  <div className="text-sm text-gray-600">Bedrooms</div>
-                </div>
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <Bath className="w-6 h-6 text-gray-600 mx-auto mb-2" />
-                  <div className="text-lg font-semibold text-gray-900">{property.bathrooms}</div>
-                  <div className="text-sm text-gray-600">Bathrooms</div>
-                </div>
+              <div className={`grid gap-4 mb-6 ${property.property_type === 'land' ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2 md:grid-cols-4'}`}>
+                {property.property_type !== 'land' && (
+                  <>
+                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                      <Bed className="w-6 h-6 text-gray-600 mx-auto mb-2" />
+                      <div className="text-lg font-semibold text-gray-900">{property.bedrooms || 'N/A'}</div>
+                      <div className="text-sm text-gray-600">Bedrooms</div>
+                    </div>
+                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                      <Bath className="w-6 h-6 text-gray-600 mx-auto mb-2" />
+                      <div className="text-lg font-semibold text-gray-900">{property.bathrooms || 'N/A'}</div>
+                      <div className="text-sm text-gray-600">Bathrooms</div>
+                    </div>
+                  </>
+                )}
                 <div className="text-center p-4 bg-gray-50 rounded-lg">
                   <Square className="w-6 h-6 text-gray-600 mx-auto mb-2" />
                   <div className="text-lg font-semibold text-gray-900">{property.square_feet?.toLocaleString()}</div>
@@ -514,6 +589,20 @@ const PropertyDetailsPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Social Sharing */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900 mb-4">Share This Property</h3>
+                <SocialShare
+                  url={window.location.href}
+                  title={property.title}
+                  description={property.property_type === 'land' 
+                    ? `${property.title} - ₹${property.price.toLocaleString()} • ${property.square_feet} sq ft • ${property.city}, ${property.state} | IDRHub`
+                    : `${property.title} - ₹${property.price.toLocaleString()} • ${property.bedrooms || 0} bed • ${property.bathrooms || 0} bath • ${property.square_feet} sq ft • ${property.city}, ${property.state} | IDRHub`
+                  }
+                  image={property.images && property.images.length > 0 ? property.images[0] : undefined}
+                  className="justify-start"
+                />
+              </div>
 
             </div>
           </div>
@@ -713,6 +802,7 @@ const PropertyDetailsPage: React.FC = () => {
         />
       </AnimatePresence>
     </div>
+    </>
   );
 };
 

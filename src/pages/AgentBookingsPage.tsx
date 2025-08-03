@@ -59,9 +59,30 @@ const AgentBookingsPage: React.FC = () => {
         throw new Error(`Booking update failed: ${bookingError.message}`);
       }
       
-      // If booking is now 'booked', update the property status as well
+      // If booking is now 'booked' (confirmed), create a transaction record
       if (newStatus === 'booked') {
+        const { error: transactionError } = await supabase
+          .from('transactions')
+          .insert([
+            {
+              property_id: booking.property_id,
+              agent_id: booking.agent_id,
+              buyer_id: null, // We don't have buyer_id in bookings, so use null
+              seller_id: booking.agent_id, // Agent is the seller
+              price: booking.property?.price || 0,
+              status: 'in_progress', // Use 'in_progress' instead of 'confirmed'
+              offer_date: new Date().toISOString(),
+              contract_date: new Date().toISOString(),
+              closing_date: new Date().toISOString(),
+            }
+          ]);
         
+        if (transactionError) {
+          console.error('❌ Transaction creation error:', transactionError);
+          // Don't throw error here as the booking status was already updated
+        }
+        
+        // Update the property status as well
         const { data: propertyData, error: propertyError } = await supabase
           .from('properties')
           .update({ status: 'booked' })
@@ -72,7 +93,6 @@ const AgentBookingsPage: React.FC = () => {
           console.error('❌ Property update error:', propertyError);
           throw new Error(`Property update failed: ${propertyError.message}`);
         }
-        
       }
       
       setStatusModal(null);

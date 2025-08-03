@@ -33,6 +33,8 @@ import TransactionsPage from './pages/TransactionsPage';
 import TransactionDetailsPage from './pages/TransactionDetailsPage';
 import AgentBookingsPage from './pages/AgentBookingsPage';
 import AdminBookingsPage from './pages/AdminBookingsPage';
+import { processUploadQueue } from './utils/fileUpload';
+import { TestSocialSharing } from './pages/TestSocialSharing';
 
 // Admin-only route protection
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -70,11 +72,33 @@ const ActivityTracker: React.FC = () => {
   return null;
 };
 
+// Component to process upload queue on app startup
+const UploadQueueProcessor: React.FC = () => {
+  React.useEffect(() => {
+    // Process upload queue when app starts
+    const processQueue = async () => {
+      try {
+        await processUploadQueue();
+      } catch (error) {
+        console.warn('Failed to process upload queue on startup:', error);
+      }
+    };
+    
+    // Process queue after a short delay to ensure auth is loaded
+    const timer = setTimeout(processQueue, 2000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  return null;
+};
+
 function App() {
   return (
     <AuthProvider>
       <Router>
         <ActivityTracker />
+        <UploadQueueProcessor />
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<HomePage />} />
@@ -108,6 +132,8 @@ function App() {
             <Route path="bookings" element={<AgentBookingsPage />} />
           </Route>
           <Route path="/admin/bookings" element={<RequireAdmin><AdminBookingsPage /></RequireAdmin>} />
+          {/* Test Routes */}
+          <Route path="/test-social-sharing" element={<TestSocialSharing />} />
           {/* Auth Routes */}
           <Route path="/signin" element={<SignInPage />} />
           <Route path="/signup" element={<SignUpPage />} />

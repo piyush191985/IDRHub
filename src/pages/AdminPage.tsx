@@ -14,7 +14,9 @@ import {
   Database,
   Home,
   Clock,
-  Star
+  Star,
+  CreditCard,
+  FileText
 } from 'lucide-react';
 import { useAdmin } from '../hooks/useAdmin';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -71,6 +73,20 @@ const AdminPage: React.FC = () => {
             </div>
             
             <div className="flex space-x-3">
+              <Link
+                to="/transactions"
+                className="bg-gradient-to-r from-green-600 to-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:from-green-700 hover:to-blue-700 transition-all duration-200 flex items-center space-x-2"
+              >
+                <CreditCard className="w-4 h-4" />
+                <span>Transactions</span>
+              </Link>
+              <Link
+                to="/admin/bookings"
+                className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center space-x-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Bookings</span>
+              </Link>
               <Link
                 to="/admin/advanced"
                 className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all duration-200 flex items-center space-x-2"

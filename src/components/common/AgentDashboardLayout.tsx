@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { Home, List, PlusCircle, MessageCircle, BarChart2, Menu, X, ChevronDown } from 'lucide-react';
+import { Home, List, PlusCircle, MessageCircle, BarChart2, Menu, X, ChevronDown, CreditCard } from 'lucide-react';
 import { Header } from './Header';
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/messages', label: 'Messages', icon: <MessageCircle className="w-5 h-5 mr-2" /> },
   { to: '/agent/stats', label: 'Stats', icon: <BarChart2 className="w-5 h-5 mr-2" /> },
   { to: '/agent/bookings', label: 'Bookings', icon: <List className="w-5 h-5 mr-2" /> },
+  { to: '/transactions', label: 'Transactions', icon: <CreditCard className="w-5 h-5 mr-2" /> },
 ];
 
 const AgentDashboardLayout: React.FC<{ children?: React.ReactNode; hideHeader?: boolean }> = ({ children, hideHeader }) => {
